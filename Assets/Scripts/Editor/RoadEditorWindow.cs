@@ -14,6 +14,7 @@ namespace RoadGenerator
 
         private SerializedProperty SP_AnimationCurve;
         private SerializedProperty SP_RoadWidth;
+        private SerializedProperty SP_RoadMesh;
 
         private const int i_curveResolution = 10;
 
@@ -23,30 +24,22 @@ namespace RoadGenerator
 
             SP_AnimationCurve = serializedObject.FindProperty("AC_SmoothCurve");
             SP_RoadWidth = serializedObject.FindProperty("f_RoadWidth");
+            SP_RoadMesh = serializedObject.FindProperty("M_RoadMesh");
 
             EditorGUILayout.PropertyField(SP_RoadWidth, new GUIContent("Road width: "));
             EditorGUILayout.PropertyField(SP_AnimationCurve, new GUIContent("Elevation smooth pattern"), GUILayout.Height(20f));
+            EditorGUILayout.PropertyField(SP_RoadMesh, new GUIContent("Road Mesh: "));
 
             serializedObject.ApplyModifiedProperties();
 
             if (selectedCurveIndex >= 0 && selectedCurveIndex >= 0 &&
                 selectedCurveIndex < R_road.RC_Curves.Count &&
-                selectedPointIndex < R_road.RC_Curves[selectedCurveIndex].GetNumberOfPoints)
+                selectedPointIndex < R_road.RC_Curves[selectedCurveIndex].NumberOfPoints)
             {
                 DrawSelectedPointInspector();
             }
 
-            if(GUILayout.Button("Match elevation"))
-            {
-                Undo.RecordObject(R_road, "Match road elevation to terrain");
-                R_road.MatchElevation();
-            }
-
-            if(GUILayout.Button("Elevate terrain to road heights"))
-            {
-                Undo.RecordObject(R_road, "Elevate terrain to road heights");
-                R_road.ElevateTerrain();
-            }
+            GUILayout.Label("Curve editor");
 
             if (GUILayout.Button("Add curve"))
             {
@@ -61,6 +54,28 @@ namespace RoadGenerator
                 R_road.ResetCurves();
                 // Code goes here
             }
+
+            GUILayout.Label("Terrain settings");
+
+            if (GUILayout.Button("Match elevation"))
+            {
+                Undo.RecordObject(R_road, "Match road elevation to terrain");
+                R_road.MatchElevation();
+            }
+
+            if (GUILayout.Button("Elevate terrain to road heights"))
+            {
+                Undo.RecordObject(R_road, "Elevate terrain to road heights");
+                R_road.ElevateTerrain();
+            }
+
+            GUILayout.Label("Mesh editor");
+
+            if(GUILayout.Button("Build mesh"))
+            {
+                R_road.BuildMesh();
+            }
+
         }
 
         private void OnSceneGUI()
@@ -70,22 +85,20 @@ namespace RoadGenerator
             Q_handleRotation = Tools.pivotRotation == PivotRotation.Local ?
                 T_handleTransform.rotation : Quaternion.identity;
 
-            for(int i = 0; i < R_road.RC_Curves.Count; i++)
+            for (int i = 0; i < R_road.RC_Curves.Count; i++)
             {
                 Vector3 p0 = ShowPoint(0, i);
                 Vector3 p1 = ShowPoint(1, i);
                 Vector3 p2 = ShowPoint(2, i);
-                Vector3 p3 = ShowPoint(3, i);
 
                 Handles.color = Color.gray;
                 Handles.DrawLine(p0, p1);
                 Handles.DrawLine(p1, p2);
-                Handles.DrawLine(p2, p3);
 
                 Handles.color = Color.white;
                 Vector3 lineStart = R_road.GetPoint(0, i);
-                
-                for(int j = 1; j <= i_curveResolution; j++)
+
+                for (int j = 1; j <= i_curveResolution; j++)
                 {
                     Vector3 lineEnd = R_road.GetPoint(j / (float)i_curveResolution, i);
                     Handles.DrawLine(lineStart, lineEnd);
@@ -100,31 +113,39 @@ namespace RoadGenerator
         private int selectedPointIndex = -1;
         private int selectedCurveIndex = -1;
 
-        private Vector3 ShowPoint(int pointIndex, int curveIndex)
+        private Vector3 ShowPoint(int pointIndex, int curveIndex, bool selectable=true)
         {
             Vector3 point = T_handleTransform.TransformPoint(R_road.RC_Curves[curveIndex].GetControlPoint(pointIndex));
 
             float size = HandleUtility.GetHandleSize(point);
-            Handles.color = Color.white;
-            if(Handles.Button(point, Q_handleRotation, size * handleSize, size * pickSize, Handles.DotHandleCap))
-            {
-                selectedPointIndex = pointIndex;
-                selectedCurveIndex = curveIndex;
-                // Refreshes inspector display
-                Repaint();
-            }
 
-            if(selectedCurveIndex == curveIndex && selectedPointIndex == pointIndex)
+            if(selectable)
             {
-                EditorGUI.BeginChangeCheck();
-                point = Handles.DoPositionHandle(point, Q_handleRotation);
-            
-                if(EditorGUI.EndChangeCheck())
+                Handles.color = Color.white;
+                if (Handles.Button(point, Q_handleRotation, size * handleSize, size * pickSize, Handles.DotHandleCap))
                 {
-                    Undo.RecordObject(R_road, "Move Point");
-                    EditorUtility.SetDirty(R_road);
-                    R_road.RC_Curves[curveIndex].SetControlPoint(pointIndex, T_handleTransform.InverseTransformPoint(point));
+                    selectedPointIndex = pointIndex;
+                    selectedCurveIndex = curveIndex;
+                    // Refreshes inspector display
+                    Repaint();
                 }
+
+                if (selectedCurveIndex == curveIndex && selectedPointIndex == pointIndex)
+                {
+                    EditorGUI.BeginChangeCheck();
+                    point = Handles.DoPositionHandle(point, Q_handleRotation);
+
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(R_road, "Move Point");
+                        EditorUtility.SetDirty(R_road);
+                        R_road.RC_Curves[curveIndex].SetControlPoint(pointIndex, T_handleTransform.InverseTransformPoint(point));
+                    }
+                }
+            }
+            else
+            {
+                Handles.DrawSolidRectangleWithOutline(new Rect(point.x - size, point.y - size, size, size), Color.gray, Color.gray);
             }
 
             return point;

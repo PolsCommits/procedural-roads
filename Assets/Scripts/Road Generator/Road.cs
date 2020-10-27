@@ -13,13 +13,10 @@ namespace RoadGenerator
         private Vector3[] V3_points;
         #endregion
 
-        public int GetNumberOfPoints
-        {
-            get { return V3_points.Length; }
-        }
+        public int NumberOfPoints { get { return V3_points.Length; } }
 
         public Vector3 GetControlPoint(int index) { return V3_points[index]; }
-        public void SetControlPoint(int index, Vector3 point) { V3_points[index] = point; }    
+        public void SetControlPoint(int index, Vector3 point) { V3_points[index] = point; }
 
         // Kudos to https://catlikecoding.com/unity/tutorials/curves-and-splines/ for providing the foundation of generating these splines
         public Vector3 GetPoint(float t)
@@ -27,10 +24,9 @@ namespace RoadGenerator
             t = Mathf.Clamp01(t);
             float oneMinusT = 1f - t;
             return
-                oneMinusT * oneMinusT * oneMinusT * V3_points[0] +
-                3f * oneMinusT * oneMinusT * t * V3_points[1] +
-                3f * oneMinusT * t * t * V3_points[2] +
-                t * t * t * V3_points[3];
+                oneMinusT * oneMinusT * V3_points[0] +
+                2f * oneMinusT * t * V3_points[1] +
+                t * t * V3_points[2];
         }
 
         public Vector3 GetFirstDerivative(float t)
@@ -38,28 +34,25 @@ namespace RoadGenerator
             t = Mathf.Clamp01(t);
             float oneMinusT = 1f - t;
             return
-                3f * oneMinusT * oneMinusT * (V3_points[1] - V3_points[0]) +
-                6f * oneMinusT * t * (V3_points[2] - V3_points[1]) +
-                3f * t * t * (V3_points[3] - V3_points[2]);
+                2f * oneMinusT * (V3_points[1] - V3_points[0]) +
+                2f * t * (V3_points[2] - V3_points[1]);
         }
 
         public void Reset()
         {
             V3_points = new Vector3[] {
-            new Vector3(1f, 0f, 0f),
-            new Vector3(2f, 0f, 0f),
-            new Vector3(3f, 0f, 0f),
-            new Vector3(4f, 0f, 0f)
+            new Vector3(5f, 0f, 0f),
+            new Vector3(10f, 0f, 0f),
+            new Vector3(15f, 0f, 0f)
             };
         }
 
         public void Reset(Vector3 startPoint, Vector3 direction)
         {
             V3_points = new Vector3[] {
-            startPoint + direction.normalized,
-            startPoint + direction.normalized * 2f,
-            startPoint + direction.normalized * 3f,
-            startPoint + direction.normalized * 4f
+            startPoint,
+            startPoint + direction.normalized * 5f,
+            startPoint + direction.normalized * 10f
             };
         }
     }
@@ -74,10 +67,11 @@ namespace RoadGenerator
         public List<RoadCurve> RC_Curves;
         public float f_RoadWidth = 12f;
         public AnimationCurve AC_SmoothCurve;
+        public Mesh M_RoadMesh;
         #endregion
 
         #region private
-
+        private MeshFilter MF_meshFilter;
         #endregion
 
         public void AddCurve()
@@ -86,32 +80,61 @@ namespace RoadGenerator
             if (RC_Curves.Count == 0)
                 rc.Reset();
             else
-                rc.Reset(RC_Curves[RC_Curves.Count - 1].GetControlPoint(RC_Curves[RC_Curves.Count - 1].GetNumberOfPoints - 1), GetVelocity(1, RC_Curves.Count - 1));
+                rc.Reset(RC_Curves[RC_Curves.Count - 1].GetControlPoint(RC_Curves[RC_Curves.Count - 1].NumberOfPoints - 1), GetVelocity(1, RC_Curves.Count - 1));
             RC_Curves.Add(rc);
         }
 
         // Returns all the points on the spline, given a specific curve resolution
-        public void GetRoadPoints(int curveRes, out Vector3[] positions, out Quaternion[] rotations)
+        public void GetRoadPoints(int curveRes, out Vector3[] positions, out Quaternion[] rotations, bool circular=true)
         {
             List<Vector3> pos = new List<Vector3>();
             List<Quaternion> rot = new List<Quaternion>();
 
             for (int i = 0; i < RC_Curves.Count; i++)
             {
-                for(int j = 0; j <= curveRes; j++)
+                for (int j = 0; j <= curveRes; j++)
                 {
                     pos.Add(RC_Curves[i].GetPoint((float)j / curveRes));
                     rot.Add(Quaternion.LookRotation(GetVelocity((float)j / curveRes, i).normalized));
                 }
             }
 
+            if(circular)
+            {
+                pos.Add(pos.First());
+                rot.Add(rot.First());
+            }
+
             rotations = rot.ToArray();
             positions = pos.ToArray();
         }
 
+        public void BuildMesh(int resolution=10)
+        {
+            if(!MF_meshFilter)
+                MF_meshFilter = GetComponent<MeshFilter>();
+
+            if(MF_meshFilter)
+            {
+                if(M_RoadMesh)
+                {
+                    Vector3[] points;
+                    Quaternion[] quats;
+
+                    GetRoadPoints(resolution, out points, out quats);
+
+                    Mesh m = RoadMesh.GetRoadMesh(M_RoadMesh, points, quats);
+                    MF_meshFilter.sharedMesh = m;
+
+                    if (GetComponent<MeshCollider>())
+                        GetComponent<MeshCollider>().sharedMesh = m;
+                }
+            }
+        }
+
         public void ResetCurves()
         {
-            RC_Curves.Clear();   
+            RC_Curves.Clear();
         }
 
         public Vector3 GetPoint(float t, int curveIndex)
@@ -130,22 +153,22 @@ namespace RoadGenerator
             RC_Curves[index].Reset();
         }
 
-        private void Update()
-        {
-            
-        }
-
         RaycastHit hitInfo;
 
         public void MatchElevation()
         {
-            for(int i = 0; i < RC_Curves.Count; i++)
+            for (int i = 0; i < RC_Curves.Count; i++)
             {
-                for(int j = 0; j < RC_Curves[i].GetNumberOfPoints; j++)
+                for (int j = 0; j < RC_Curves[i].NumberOfPoints; j++)
                 {
-                    if (Physics.Raycast(RC_Curves[i].GetControlPoint(j), Vector3.down, out hitInfo, 100f))
+                    if (Physics.Raycast(transform.TransformPoint(RC_Curves[i].GetControlPoint(j)), Vector3.down, out hitInfo, 100f))
                     {
-                        RC_Curves[i].SetControlPoint(j, hitInfo.point);
+                        Debug.DrawLine(transform.TransformPoint(RC_Curves[i].GetControlPoint(j)), hitInfo.point, Color.green, 5f);
+                        RC_Curves[i].SetControlPoint(j, transform.InverseTransformPoint(hitInfo.point));
+                    }
+                    else
+                    {
+                        Debug.DrawRay(transform.TransformPoint(RC_Curves[i].GetControlPoint(j)), Vector3.down * 100f, Color.red, 5f);
                     }
                 }
             }
@@ -160,7 +183,7 @@ namespace RoadGenerator
             public Terrain terrain;
         }
 
-        public Terrain ElevateTerrain(int resolution=100)
+        public Terrain ElevateTerrain(int resolution = 100)
         {
             Terrain t = null;
             List<PointToElevate> pointsToElevate = new List<PointToElevate>();
@@ -186,7 +209,7 @@ namespace RoadGenerator
                 }
             }
 
-            if(t)
+            if (t)
             {
                 // Sort all the points by the terrain they belong to
                 pointsToElevate.Sort((x, y) => x.terrain.groupingID.CompareTo(y.terrain.groupingID));
@@ -202,7 +225,7 @@ namespace RoadGenerator
             return (value - from1) / (to1 - from1) * (to2 - from2) + from2;
         }
 
-        public void SetTerrainHeights(PointToElevate[] pointsToElevate, float radius=3f)
+        public void SetTerrainHeights(PointToElevate[] pointsToElevate, float radius = 3f)
         {
             int size = (int)Mathf.Ceil(radius * 2);
             // Get the first terrain to modify
@@ -212,10 +235,10 @@ namespace RoadGenerator
             Vector3 atPosition;
             float dist = 0f;
 
-            for(int n = 0; n < pointsToElevate.Length; n++)
+            for (int n = 0; n < pointsToElevate.Length; n++)
             {
                 // If we have reached a new terrain, apply the changes to the current terrain
-                if(pointsToElevate[n].terrain != currentTerrain)
+                if (pointsToElevate[n].terrain != currentTerrain)
                 {
                     currentTerrain.terrainData.SetHeightsDelayLOD(0, 0, heights);
                     currentTerrain = pointsToElevate[n].terrain;
