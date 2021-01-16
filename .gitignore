@@ -2,3 +2,4 @@
 !*/
 !/Assets/Scripts/**/*.cs
 !/images/**
+/Assets/Scripts/SimpleCameraController.cs
