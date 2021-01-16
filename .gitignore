@@ -1,3 +1,4 @@
 *
 !*/
 !/Assets/Scripts/**/*.cs
+!/images/**

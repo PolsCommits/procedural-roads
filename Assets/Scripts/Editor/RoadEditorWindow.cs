@@ -14,7 +14,10 @@ namespace RoadGenerator
 
         private SerializedProperty SP_AnimationCurve;
         private SerializedProperty SP_RoadWidth;
+        private SerializedProperty SP_PropFrequency;
         private SerializedProperty SP_RoadMesh;
+        private SerializedProperty SP_PillarMesh;
+        private SerializedProperty SP_UsePillars;
 
         private const int i_curveResolution = 10;
 
@@ -24,11 +27,18 @@ namespace RoadGenerator
 
             SP_AnimationCurve = serializedObject.FindProperty("AC_SmoothCurve");
             SP_RoadWidth = serializedObject.FindProperty("f_RoadWidth");
+            SP_PropFrequency = serializedObject.FindProperty("i_PropFrequency");
             SP_RoadMesh = serializedObject.FindProperty("M_RoadMesh");
+            SP_PillarMesh = serializedObject.FindProperty("M_PropMesh");
+            SP_UsePillars = serializedObject.FindProperty("b_UsePillars");
 
             EditorGUILayout.PropertyField(SP_RoadWidth, new GUIContent("Road width: "));
+            EditorGUILayout.PropertyField(SP_PropFrequency, new GUIContent("Pillar gap: "));
             EditorGUILayout.PropertyField(SP_AnimationCurve, new GUIContent("Elevation smooth pattern"), GUILayout.Height(20f));
             EditorGUILayout.PropertyField(SP_RoadMesh, new GUIContent("Road Mesh: "));
+            EditorGUILayout.PropertyField(SP_UsePillars, new GUIContent("Enable pillars: "));
+            if(R_road.b_UsePillars)
+                EditorGUILayout.PropertyField(SP_PillarMesh, new GUIContent("Pillar Mesh: "));
 
             serializedObject.ApplyModifiedProperties();
 
@@ -45,6 +55,13 @@ namespace RoadGenerator
             {
                 Undo.RecordObject(R_road, "Add new curve");
                 R_road.AddCurve();
+                // Code goes here
+            }
+
+            if (GUILayout.Button("Remove last curve"))
+            {
+                Undo.RecordObject(R_road, "Remove last curve");
+                R_road.RemoveCurve(R_road.RC_Curves.Count - 1);
                 // Code goes here
             }
 
@@ -90,10 +107,11 @@ namespace RoadGenerator
                 Vector3 p0 = ShowPoint(0, i);
                 Vector3 p1 = ShowPoint(1, i);
                 Vector3 p2 = ShowPoint(2, i);
+                Vector3 p3 = ShowPoint(3, i);
 
                 Handles.color = Color.gray;
                 Handles.DrawLine(p0, p1);
-                Handles.DrawLine(p1, p2);
+                Handles.DrawLine(p2, p3);
 
                 Handles.color = Color.white;
                 Vector3 lineStart = R_road.GetPoint(0, i);
@@ -101,7 +119,15 @@ namespace RoadGenerator
                 for (int j = 1; j <= i_curveResolution; j++)
                 {
                     Vector3 lineEnd = R_road.GetPoint(j / (float)i_curveResolution, i);
+                    Handles.color = Color.white;
                     Handles.DrawLine(lineStart, lineEnd);
+
+                    Vector3 t0 = R_road.GetTangent(j / (float)i_curveResolution, i);
+
+                    Handles.color = Color.cyan;
+                    Handles.DrawLine(lineEnd, lineEnd + t0 * R_road.f_RoadWidth);
+                    Handles.DrawLine(lineEnd, lineEnd - t0 * R_road.f_RoadWidth);
+
                     lineStart = lineEnd;
                 }
             }

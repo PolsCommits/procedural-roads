@@ -99,5 +99,57 @@ namespace RoadGenerator
 
             return -1;
         }
+
+        public static Mesh GetRoadProps(Mesh propMesh, Vector3[] points, Quaternion[] rotations, int frequency=4)
+        {
+            Mesh m = new Mesh();
+
+            // Save the original mesh data
+            Vector3[] inputVertices = propMesh.vertices;
+            int[] inputTris = propMesh.triangles;
+            Vector2[] inputUVs = propMesh.uv;
+            Vector3[] inputNormals = propMesh.normals;
+
+            // Create containers for the output
+            List<Vector3> outputVertices = new List<Vector3>();
+            List<int> outputTris = new List<int>();
+            List<Vector2> outputUVs = new List<Vector2>();
+            List<Vector3> outputNormals = new List<Vector3>();
+
+            // Save the length of the points array for convenience
+            int numPoints = points.Length;
+            // Save the number of vertices in the original mesh
+            int inputVertexCount = inputVertices.Length;
+            // Save the number of tris in the original mesh
+            int inputTriCount = inputTris.Length;
+
+            int propCount = 0;
+
+            for (int i = 0; i < numPoints; i+=frequency)
+            {
+                for(int j = 0; j < inputVertexCount; j++)
+                {
+                    outputVertices.Add(points[i] + rotations[i] * inputVertices[j]);
+                }
+
+                for (int j = 0; j < inputTriCount; j++)
+                {
+                    outputTris.Add(inputTris[j] + (inputVertexCount * propCount));
+                }
+
+                outputNormals.AddRange(inputNormals);
+                outputUVs.AddRange(inputUVs);
+                propCount++;
+            }
+
+            m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+
+            m.SetVertices(outputVertices);
+            m.SetNormals(outputNormals);
+            m.SetUVs(0, outputUVs);
+            m.SetTriangles(outputTris, 0);
+
+            return m;
+        }
     }
 }
