@@ -2,4 +2,6 @@
 !*/
 !/Assets/Scripts/**/*.cs
 !/images/**
+!LICENSE
 /Assets/Scripts/SimpleCameraController.cs
+
